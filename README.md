@@ -14,5 +14,5 @@ A simple backend to manage the sweet `.env`. It is still under development but o
 The stack being used in this project is:
 
 - Golang
-- Turso
+- PlanetScale
 - Chi
