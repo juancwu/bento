@@ -8,6 +8,9 @@ A simple backend to manage the sweet `.env`. It is still under development but o
 - Delete specific environment variables based on project and scope
 - Download the sweet `.env` file.
 
+## Current Plan
+
+Read the current plan for this project in [here](/docs/PLANNING.md)
 
 > This backend should be treated as a service which any client that is able to make HTTP request can tap into and use.
 
