@@ -1,13 +1,18 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/juancwu/bento/store"
 )
 
 type Handler struct {
     router chi.Router
+    s *store.Store
 }
 
 func New() *Handler {
@@ -16,6 +21,15 @@ func New() *Handler {
     h.router = chi.NewRouter()
 
     h.router.Get("/bentos", h.GetBentos)
+    h.router.Get("/stats", h.GetStats)
+
+    s, err := store.New()
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "failed to open db %s: %s", os.Getenv("BENTO_DB_URL"), err)
+        os.Exit(1)
+    }
+
+    h.s = s
 
     return h
 }
