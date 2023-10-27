@@ -29,7 +29,7 @@ func main() {
     })
 
     apiHandler := api.New()
-    r.Mount("/api", apiHandler)
+    r.Mount("/api/v1", apiHandler)
 
     addr := ":3000"
     fmt.Printf("Serving on port %s\n", addr)
