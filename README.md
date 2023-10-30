@@ -8,6 +8,12 @@ A simple backend to manage the sweet `.env`. It is still under development but o
 - Delete specific environment variables based on project and scope
 - Download the sweet `.env` file.
 
+## Pre-requisites
+
+1. Install libsql-migrate
+
+`go install github.com/juancwu/libsql-migrate@latest`
+
 ## Current Plan
 
 Read the current plan for this project in [here](/docs/PLANNING.md)
