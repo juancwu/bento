@@ -12,7 +12,7 @@ import (
 
 type Handler struct {
     router chi.Router
-    s *store.Store
+    store *store.Store
 }
 
 func New() *Handler {
@@ -29,7 +29,7 @@ func New() *Handler {
         os.Exit(1)
     }
 
-    h.s = s
+    h.store = s
 
     return h
 }
