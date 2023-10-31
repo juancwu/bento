@@ -1,7 +1,10 @@
 package oauth
 
 import (
-    "net/http"
+	"crypto/rand"
+	"encoding/base64"
+	"io"
+	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
@@ -30,3 +33,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) urlParam(r *http.Request, key string) string {
     return chi.URLParam(r, key)
 }
+
+// Generates a random state to use to identify the oauth redirect uri
+func State(n int) (string, error) {
+    data := make([]byte, n)
+    if _, err := io.ReadFull(rand.Reader, data); err != nil {
+        return "", err
+    }
+
+    return base64.StdEncoding.EncodeToString(data), nil
+}
+
