@@ -13,7 +13,7 @@ type Handler struct {
     store *store.Store
 }
 
-func New(store *store.Store) *Handler {
+func New(s *store.Store) *Handler {
     h := &Handler{}
 
     h.router = chi.NewRouter()
@@ -21,7 +21,7 @@ func New(store *store.Store) *Handler {
     h.router.Get("/bentos", h.GetBentos)
     h.router.Get("/stats", h.GetStats)
 
-    h.store = store
+    h.store = s
 
     return h
 }
