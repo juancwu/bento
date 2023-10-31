@@ -11,6 +11,7 @@ import (
 
     "github.com/juancwu/bento/api"
 	"github.com/juancwu/bento/store"
+    "github.com/juancwu/bento/oauth"
 )
 
 type PostBody struct {
@@ -37,7 +38,9 @@ func main() {
     }
 
     apiHandler := api.New(s)
+    oauthHandler := oauth.New(s)
     r.Mount("/api/v1", apiHandler)
+    r.Mount("/oauth", oauthHandler)
 
     addr := ":3000"
     fmt.Printf("Serving on port %s\n", addr)
