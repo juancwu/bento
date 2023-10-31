@@ -5,12 +5,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-    "github.com/juancwu/bento/web"
 	"github.com/juancwu/bento/store"
 )
 
-func New(store *store.Store) *web.Handler {
-    h := &web.Handler{}
+type Handler struct {
+    router chi.Router
+    store *store.Store
+}
+
+func New(store *store.Store) *Handler {
+    h := &Handler{}
 
     h.router = chi.NewRouter()
 
@@ -22,10 +26,10 @@ func New(store *store.Store) *web.Handler {
     return h
 }
 
-func (h *web.Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     h.router.ServeHTTP(w, r)
 }
 
-func (h *web.Handler) urlParam(r *http.Request, key string) string {
+func (h *Handler) urlParam(r *http.Request, key string) string {
     return chi.URLParam(r, key)
 }
