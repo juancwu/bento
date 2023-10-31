@@ -25,6 +25,6 @@ func New() (*Store, error) {
     return s, nil
 }
 
-func (s *Store) Test() sql.DBStats {
+func (s *Store) Stats() sql.DBStats {
     return s.db.Stats()
 }
