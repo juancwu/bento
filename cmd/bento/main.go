@@ -4,11 +4,13 @@ import (
 	"fmt"
     "net/http"
     "time"
+    "os"
 
     "github.com/go-chi/chi/v5"
     "github.com/go-chi/chi/v5/middleware"
 
     "github.com/juancwu/bento/api"
+	"github.com/juancwu/bento/store"
 )
 
 type PostBody struct {
@@ -28,7 +30,13 @@ func main() {
         w.Write([]byte("It works!"))
     })
 
-    apiHandler := api.New()
+    s, err := store.New()
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "failed to open db %s: %s", os.Getenv("BENTO_DB_URL"), err)
+        os.Exit(1)
+    }
+
+    apiHandler := api.New(s)
     r.Mount("/api/v1", apiHandler)
 
     addr := ":3000"
