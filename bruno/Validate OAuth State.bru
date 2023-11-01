@@ -1,0 +1,15 @@
+meta {
+  name: Validate OAuth State
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{url}}:{{port}}/oauth/validate-state?state=wOz1vQ29FECVBPtHi4DkmcQz8H0i2J5TwTWk9JU6HDw=.BWk6m8HFAUHCGJ/dJUJ9Or2n1RdreJVpMAMByHDY8HU=
+  body: none
+  auth: none
+}
+
+query {
+  state: wOz1vQ29FECVBPtHi4DkmcQz8H0i2J5TwTWk9JU6HDw
+}
