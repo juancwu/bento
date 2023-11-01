@@ -1,6 +1,9 @@
 DB_CONN ?= $(shell cat .env | grep BENTO_DB_CONN | sed 's/^[^=]*=//')
 MIGRATION_FOLDER ?= ./migrations
 
+run:
+	@go run ./cmd/bento
+
 migrate-up:
 	@libsql-migrate up --url "$(DB_CONN)" --path "$(MIGRATION_FOLDER)"
 
