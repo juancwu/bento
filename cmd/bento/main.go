@@ -2,16 +2,17 @@ package main
 
 import (
 	"fmt"
-    "net/http"
-    "time"
-    "os"
+	"net/http"
+	"os"
+	"time"
 
-    "github.com/go-chi/chi/v5"
-    "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 
-    "github.com/juancwu/bento/api"
+	"github.com/juancwu/bento/api"
+	"github.com/juancwu/bento/env"
+	"github.com/juancwu/bento/oauth"
 	"github.com/juancwu/bento/store"
-    "github.com/juancwu/bento/oauth"
 )
 
 type PostBody struct {
@@ -19,6 +20,12 @@ type PostBody struct {
 }
 
 func main() {
+    fmt.Println("Load env...")
+    err := env.Load()
+    if err != nil {
+        panic(err)
+    }
+
     r := chi.NewRouter()
     r.Use(middleware.RequestID)
     r.Use(middleware.RealIP)
