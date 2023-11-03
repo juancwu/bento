@@ -104,3 +104,39 @@ func hash(s string) (string, error) {
 
     return base64.URLEncoding.EncodeToString(hasher.Sum(nil)), nil
 }
+
+func getUserPrimaryEmail(token string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, GITHUB_USER_EMAILS_URL, nil)
+	if err != nil {
+		return "", err
+	}
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+    defer res.Body.Close()
+
+    if res.StatusCode != http.StatusOK {
+		return "", errors.New(fmt.Sprintf("Server returned non-200 status: %d %s", res.StatusCode, res.Status))
+    }
+
+    var emails []Email 
+    if err := json.NewDecoder(res.Body).Decode(&emails); err != nil {
+        return "", errors.New("Error decoding response json from user emails request")
+    }
+
+    for _, email := range emails {
+        if email.Primary {
+            if !email.Verified {
+                return "", errors.New("OAuth callback attempt, user email not verified")
+            }
+
+            return email.Email, nil
+        }
+    }
+
+    return "", errors.New("No email available")
+}
