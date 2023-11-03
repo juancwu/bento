@@ -5,11 +5,11 @@ meta {
 }
 
 get {
-  url: {{url}}:{{port}}/oauth/validate-state?state=wOz1vQ29FECVBPtHi4DkmcQz8H0i2J5TwTWk9JU6HDw=.BWk6m8HFAUHCGJ/dJUJ9Or2n1RdreJVpMAMByHDY8HU=
+  url: {{url}}:{{port}}/oauth/validate-state?state={{oauth_state}}
   body: none
   auth: none
 }
 
 query {
-  state: wOz1vQ29FECVBPtHi4DkmcQz8H0i2J5TwTWk9JU6HDw
+  state: {{oauth_state}}
 }
