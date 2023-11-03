@@ -16,8 +16,6 @@ import (
 )
 
 const (
-	// GITHUB_OAUTH_URL = "https://github.com/login/oauth/authorize?scope=user:email&state=%s&client_id=%s"
-	// GITHUB_OAUTH_ACCESS_URL = "https://github.com/login/oauth/access_token?clieant_id=%s&client_secret=%s&code=%s"
     GITHUB_OAUTH_URL = "https://github.com/login/oauth/authorize"
     GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 )
