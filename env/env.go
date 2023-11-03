@@ -14,6 +14,7 @@ const (
 	BENTO_DB_CONN              = "BENTO_DB_CONN"
 	GITHUB_OAUTH_CLIENT_ID     = "GITHUB_OAUTH_CLIENT_ID"
 	GITHUB_OAUTH_CLIENT_SECRET = "GITHUB_OAUTH_CLIENT_SECRET"
+	DSN                        = "DSN"
 )
 
 func Load() error {
@@ -38,6 +39,7 @@ func checkEnv() error {
 		BENTO_DB_CONN,
 		GITHUB_OAUTH_CLIENT_ID,
 		GITHUB_OAUTH_CLIENT_SECRET,
+		DSN,
 	}
 
 	for _, name := range envList {

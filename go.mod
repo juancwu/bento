@@ -7,6 +7,8 @@ require (
 	github.com/joho/godotenv v1.5.1
 )
 
+require github.com/go-sql-driver/mysql v1.7.1 // indirect
+
 require (
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230512164433-5d1fd1a340c9 // indirect
 	github.com/klauspost/compress v1.15.15 // indirect

@@ -38,7 +38,7 @@ func main() {
         w.Write([]byte("It works!"))
     })
 
-    s, err := store.New()
+    s, err := store.NewTursoStore()
     if err != nil {
         fmt.Fprintf(os.Stderr, "failed to open db %s: %s", os.Getenv("BENTO_DB_URL"), err)
         os.Exit(1)
