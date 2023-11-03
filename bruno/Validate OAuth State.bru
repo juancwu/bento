@@ -5,11 +5,11 @@ meta {
 }
 
 get {
-  url: {{url}}:{{port}}/oauth/validate-state?state={{oauth_state}}
+  url: {{url}}:{{port}}/oauth/validate-state
   body: none
   auth: none
 }
 
 query {
-  state: {{oauth_state}}
+  state: 
 }
