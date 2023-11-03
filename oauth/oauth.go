@@ -28,7 +28,6 @@ func New(s *store.Store) *OAuthHandler {
 
 	h.router = chi.NewRouter()
 
-	// TODO: remove this routes once done with oauth implementation
 	h.router.Get("/github/callback", h.HandleCallback)
     h.router.Get("/login", h.GetLoginPage)
 
