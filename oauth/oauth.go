@@ -62,14 +62,14 @@ func (h *OAuthHandler) GetLoginPage(w http.ResponseWriter, r *http.Request) {
 
 func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
     // verify state
-    incomingState := r.URL.Query().Get("state")
-    if incomingState == "" {
+    state := r.URL.Query().Get("state")
+    if state == "" {
         fmt.Println("OAuth callback attempt without state")
         http.Error(w, "No state", http.StatusBadRequest)
         return
     }
 
-    err := verifyState(incomingState, os.Getenv(env.SECRET_KEY))
+    err := verifyState(state, os.Getenv(env.SECRET_KEY))
     if err != nil {
         fmt.Println("OAuth callback attempt with invalid state")
         http.Error(w, "Invalid state", http.StatusBadRequest)
