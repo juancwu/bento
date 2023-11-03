@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"os"
 
+    _ "github.com/go-sql-driver/mysql"
+
 	"github.com/juancwu/bento/env"
 )
 
