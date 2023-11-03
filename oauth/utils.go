@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+    "os"
 	"strings"
 )
 
@@ -15,7 +16,7 @@ func GenerateRandomString(n int) (string, error) {
         return "", err
     }
 
-    return base64.StdEncoding.EncodeToString(data), nil
+    return base64.URLEncoding.EncodeToString(data), nil
 }
 
 // generates a random state to use to identify the oauth redirect uri
@@ -38,6 +39,10 @@ func CreateOAuthState(secret string) (string, error) {
 func VerifyState(state string, secret string) error {
     parts := strings.Split(state, ".")
 
+    if len(parts) < 2 {
+        return fmt.Errorf("OAUTH state string is invalid.")
+    }
+
     temptableSignature := parts[1]
     randomString := parts[0]
     trueSignature, err := hash(randomString + secret)
@@ -52,11 +57,15 @@ func VerifyState(state string, secret string) error {
     return nil
 }
 
+func GetGitHubOAuthURL (state string) (string) {
+    return fmt.Sprintf(GITHUB_OAUTH_URL, state, os.Getenv("OAUTH_GITHUB_CLIENT_ID"))
+}
+
 func hash(s string) (string, error) {
     hasher := sha256.New()
     if _, err := io.WriteString(hasher, s); err != nil {
         return "", err
     }
 
-    return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
+    return base64.URLEncoding.EncodeToString(hasher.Sum(nil)), nil
 }
