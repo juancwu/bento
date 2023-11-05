@@ -140,3 +140,29 @@ func getUserPrimaryEmail(token string) (string, error) {
 
     return "", errors.New("No email available")
 }
+
+func getUserInfoFromGitHub(token string) (*User, error) {
+    req, err := http.NewRequest(http.MethodGet, GITHUB_USER_INFO_URL, nil)
+    if err != nil {
+        return nil, err
+    }
+    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+    client := &http.Client{}
+    res, err := client.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer res.Body.Close()
+
+    if res.StatusCode != http.StatusOK {
+        return nil, errors.New(fmt.Sprintf("Server returned non-200 status: %s", res.Status))
+    }
+
+    var user User
+    if err := json.NewDecoder(res.Body).Decode(&user); err != nil {
+        return nil, errors.New("Error decoding response json from user info request")
+    }
+
+    return &user, nil
+}

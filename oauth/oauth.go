@@ -17,6 +17,8 @@ const (
 	GITHUB_OAUTH_URL       = "https://github.com/login/oauth/authorize"
 	GITHUB_TOKEN_URL       = "https://github.com/login/oauth/access_token"
 	GITHUB_USER_EMAILS_URL = "https://api.github.com/user/emails"
+	GITHUB_USER_INFO_URL   = "https://api.github.com/user"
+	NANOID_LEN             = 12
 )
 
 func New(s *store.Store) *OAuthHandler {
@@ -85,16 +87,41 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// create new user if not exists
-	// get user email, and it has to be verified
-	email, err := getUserPrimaryEmail(token)
+	userInfo, err := getUserInfoFromGitHub(token)
 	if err != nil {
-        msg := err.Error()
-		fmt.Println(msg)
-		http.Error(w, msg, http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
-	fmt.Printf("User Email: %s\n", email)
+	if userInfo.Email == nil {
+		// create new user if not exists
+		// get user email, and it has to be verified
+		email, err := getUserPrimaryEmail(token)
+		if err != nil {
+			msg := err.Error()
+			fmt.Println(msg)
+			http.Error(w, msg, http.StatusBadRequest)
+		}
 
-	web.Reply(w, token, http.StatusOK)
+		fmt.Printf("User Email: %s\n", email)
+
+		userInfo.Email = &email
+	}
+
+	user, err := h.store.CreateNewUser(*userInfo.Email, userInfo.ID)
+	if err != nil {
+		fmt.Printf("ERROR: could not create new user: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	response := OAuthSuccessResponse{}
+	response.Email = user.Email
+	response.ObjectId = user.ObjectId
+	response.GhId = userInfo.ID
+	response.Token = token
+
+	// TODO: create signed jwt to send back to client
+
+	web.Json(w, response, http.StatusOK)
 }

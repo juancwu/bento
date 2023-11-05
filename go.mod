@@ -7,6 +7,7 @@ require (
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/golang-migrate/migrate/v4 v4.16.2
 	github.com/joho/godotenv v1.5.1
+	github.com/matoous/go-nanoid/v2 v2.0.0
 )
 
 require (
