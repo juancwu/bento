@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/juancwu/bento/store"
 )
@@ -29,4 +30,9 @@ type OAuthSuccessResponse struct {
     Email string `json:"email"`
     ObjectId string `json:"object_id"`
     GhId int `json:"gh_id"`
+}
+
+type OAuthToken struct {
+    Id int `json:"id"`
+    jwt.RegisteredClaims
 }
