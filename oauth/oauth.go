@@ -154,7 +154,23 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-    // TODO: save access token in database
+    ghToken, err := h.store.GetAccessToken(user.Id)
+    if err != nil && err == sql.ErrNoRows {
+        // create new access token entry
+        h.store.SaveAccessToken(user.Id, token)
+    } else if err != nil {
+        fmt.Printf("ERROR: %v", err)
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    } else if  ghToken != token {
+        // update acess token in db
+        err = h.store.UpdateAccessToken(user.Id, token)
+        if err != nil {
+            fmt.Printf("ERROR: %v", err)
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+    }
 
 	tokenString, err := createJWT(user.Id)
 	if err != nil {
