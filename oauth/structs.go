@@ -20,7 +20,7 @@ type Email struct {
 }
 
 type User struct {
-    ID int `json:"id"`
+    Id int `json:"id"`
     Email *string `json:"email"`
     Login *string `json:"login"`
 }

@@ -122,13 +122,13 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userInfo, err := getUserInfoFromGitHub(token)
+	ghUser, err := getUserInfoFromGitHub(token)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if userInfo.Email == nil {
+	if ghUser.Email == nil {
 		// create new user if not exists
 		// get user email, and it has to be verified
 		email, err := getUserPrimaryEmail(token)
@@ -140,13 +140,13 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 		fmt.Printf("User Email: %s\n", email)
 
-		userInfo.Email = &email
+		ghUser.Email = &email
 	}
 
 	// check if user exists
-	user, err := h.store.GetUserByGhId(userInfo.ID)
+	user, err := h.store.GetUserByGhId(ghUser.Id)
 	if err != nil && err == sql.ErrNoRows {
-		user, err = h.store.CreateNewUser(*userInfo.Email, userInfo.ID)
+		user, err = h.store.CreateNewUser(*ghUser.Email, ghUser.Id)
 		if err != nil {
 			fmt.Printf("ERROR: could not create new user: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -155,7 +155,7 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
     ghToken, err := h.store.GetAccessToken(user.Id)
-    if err != nil && err == sql.ErrNoRows {
+    if err == sql.ErrNoRows {
         // create new access token entry
         h.store.SaveAccessToken(user.Id, token)
     } else if err != nil {
