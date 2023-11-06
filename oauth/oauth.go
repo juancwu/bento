@@ -154,6 +154,8 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+    // TODO: save access token in database
+
 	tokenString, err := createJWT(user.Id)
 	if err != nil {
 		fmt.Printf("ERROR: %v", err)
