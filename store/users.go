@@ -54,7 +54,7 @@ func (s *Store) CreateNewUser(email string, ghId int) (*User, error) {
     return &user, nil
 }
 
-func (s *Store) CheckUser(ghId int) (*User, error) {
+func (s *Store) GetUserByGhId(ghId int) (*User, error) {
     var user User
     err := s.db.QueryRow("SELECT id, email, object_id FROM users WHERE gh_id = ?", ghId).Scan(&user.Id, &user.Email, &user.ObjectId)
     if err != nil {

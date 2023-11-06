@@ -144,7 +144,7 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check if user exists
-	user, err := h.store.CheckUser(userInfo.ID)
+	user, err := h.store.GetUserByGhId(userInfo.ID)
 	if err != nil && err == sql.ErrNoRows {
 		user, err = h.store.CreateNewUser(*userInfo.Email, userInfo.ID)
 		if err != nil {
