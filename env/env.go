@@ -9,6 +9,7 @@ import (
 
 const (
 	SECRET_KEY                 = "SECRET_KEY"
+	STATE_SECRET_KEY           = "STATE_SECRET_KEY"
 	BENTO_DB_URL               = "BENTO_DB_URL"
 	BENTO_DB_AUTH_TOKEN        = "BENTO_DB_AUTH_TOKEN"
 	BENTO_DB_CONN              = "BENTO_DB_CONN"
@@ -34,6 +35,7 @@ func Load() error {
 func checkEnv() error {
 	envList := []string{
 		SECRET_KEY,
+        STATE_SECRET_KEY,
 		BENTO_DB_URL,
 		BENTO_DB_AUTH_TOKEN,
 		BENTO_DB_CONN,
