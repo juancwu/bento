@@ -27,9 +27,6 @@ type User struct {
 
 type OAuthSuccessResponse struct {
     Token string `json:"token"`
-    Email string `json:"email"`
-    ObjectId string `json:"object_id"`
-    GhId int `json:"gh_id"`
 }
 
 type OAuthToken struct {

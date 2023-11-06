@@ -1,10 +1,13 @@
 package oauth
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -19,6 +22,7 @@ const (
 	GITHUB_USER_EMAILS_URL = "https://api.github.com/user/emails"
 	GITHUB_USER_INFO_URL   = "https://api.github.com/user"
 	NANOID_LEN             = 12
+	OAUTH_TOKEN_EXP        = 744 * time.Hour // A month
 )
 
 func New(s *store.Store) *OAuthHandler {
@@ -43,6 +47,37 @@ func (h *OAuthHandler) urlParam(r *http.Request, key string) string {
 }
 
 func (h *OAuthHandler) GetLoginPage(w http.ResponseWriter, r *http.Request) {
+	// check for bearer token
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" {
+		parts := strings.Fields(authHeader)
+		if len(parts) == 2 && strings.ToLower(parts[0]) == "bearer" {
+			tokenString := parts[1]
+			fmt.Printf("Token: %s\n", tokenString)
+			// verify the token
+			token, err := verifyJWT(tokenString)
+			if err != nil {
+				fmt.Printf("ERROR: %s\n", err.Error())
+			} else {
+				claims, ok := token.Claims.(*OAuthToken)
+				if ok {
+					fmt.Printf("Claims: %v\n", claims)
+					// get user info
+					user, err := h.store.GetUserById(claims.Id)
+					if err != nil {
+						fmt.Printf("Could not get user with id: %d\n", claims.Id)
+						fmt.Printf("ERROR: %s\n", err.Error())
+					} else {
+						fmt.Printf("User: %v\n", user)
+					}
+				}
+
+				fmt.Fprint(w, "Token is valid")
+				return
+			}
+		}
+	}
+
 	query := url.Values{}
 	query.Set("client_id", os.Getenv(env.GITHUB_OAUTH_CLIENT_ID))
 	query.Set("scope", "user:email")
@@ -108,20 +143,27 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		userInfo.Email = &email
 	}
 
-	user, err := h.store.CreateNewUser(*userInfo.Email, userInfo.ID)
+	// check if user exists
+	user, err := h.store.CheckUser(userInfo.ID)
+	if err != nil && err == sql.ErrNoRows {
+		user, err = h.store.CreateNewUser(*userInfo.Email, userInfo.ID)
+		if err != nil {
+			fmt.Printf("ERROR: could not create new user: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	tokenString, err := createJWT(user.Id)
 	if err != nil {
-		fmt.Printf("ERROR: could not create new user: %v", err)
+		fmt.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	response := OAuthSuccessResponse{}
-	response.Email = user.Email
-	response.ObjectId = user.ObjectId
-	response.GhId = userInfo.ID
-	response.Token = token
-
-	// TODO: create signed jwt to send back to client
+	response := OAuthSuccessResponse{
+		Token: tokenString,
+	}
 
 	web.Json(w, response, http.StatusOK)
 }
