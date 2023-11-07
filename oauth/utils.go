@@ -220,11 +220,18 @@ func getStdJWTClaims(exp time.Duration) jwt.RegisteredClaims {
 	return stdClaims
 }
 
-func isValidPort(portStr string) bool {
+func isValidPort(portStr string) (bool, uint16) {
     port, err := strconv.Atoi(portStr)
     if err != nil {
-        return false
+        return false, 0
     }
 
-    return port > 0 && port <= 65535
+    valid := port > 0 && port <= 65535
+    if !valid {
+        return false, 0
+    }
+
+    port16 := uint16(port)
+
+    return true, port16
 }

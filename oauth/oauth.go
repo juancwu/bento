@@ -22,7 +22,7 @@ const (
 	GITHUB_USER_EMAILS_URL = "https://api.github.com/user/emails"
 	GITHUB_USER_INFO_URL   = "https://api.github.com/user"
 	NANOID_LEN             = 12
-	OAUTH_TOKEN_EXP        = 744 * time.Hour // A month
+	OAUTH_TOKEN_EXP        = 168 * time.Hour // one week 
 )
 
 func New(s *store.Store) *OAuthHandler {
@@ -80,7 +80,7 @@ func (h *OAuthHandler) GetLoginPage(w http.ResponseWriter, r *http.Request) {
 
     flow := strings.ToLower(r.URL.Query().Get("flow"))
     redirect := strings.ToLower(r.URL.Query().Get("redirect"))
-    port := r.URL.Query().Get("port")
+    portString := r.URL.Query().Get("port")
 
     if redirect == "" || strings.Contains(redirect, "localhost") {
         http.Error(w, "Invalid redirect query parameter", http.StatusBadRequest)
@@ -92,7 +92,9 @@ func (h *OAuthHandler) GetLoginPage(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    if !isValidPort(port) {
+    validPort, port := isValidPort(portString)
+
+    if !validPort {
         http.Error(w, "Invalid port query parameter", http.StatusBadRequest)
         return
     }
