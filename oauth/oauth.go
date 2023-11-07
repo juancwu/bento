@@ -59,7 +59,7 @@ func (h *OAuthHandler) GetLoginPage(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				fmt.Printf("ERROR: %s\n", err.Error())
 			} else {
-				claims, ok := token.Claims.(*OAuthToken)
+				claims, ok := token.Claims.(*OAuthTokenJWT)
 				if ok {
 					fmt.Printf("Claims: %v\n", claims)
 					// get user info
@@ -78,16 +78,46 @@ func (h *OAuthHandler) GetLoginPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+    flow := strings.ToLower(r.URL.Query().Get("flow"))
+    redirect := strings.ToLower(r.URL.Query().Get("redirect"))
+    port := r.URL.Query().Get("port")
+
+    if redirect == "" || strings.Contains(redirect, "localhost") {
+        http.Error(w, "Invalid redirect query parameter", http.StatusBadRequest)
+        return
+    }
+
+    if flow != "" && flow != "web" && flow != "cli" {
+        http.Error(w, "Invalid flow query parameter", http.StatusBadRequest)
+        return
+    }
+
+    if !isValidPort(port) {
+        http.Error(w, "Invalid port query parameter", http.StatusBadRequest)
+        return
+    }
+
 	query := url.Values{}
 	query.Set("client_id", os.Getenv(env.GITHUB_OAUTH_CLIENT_ID))
 	query.Set("scope", "user:email")
-	state, err := createOAuthState(os.Getenv(env.SECRET_KEY))
+
+	state, stateId, err := createOAuthState()
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Problem occurred getting url"))
 		return
 	}
+
+    // save state in database for further query on callback
+    err = h.store.SaveState(stateId, flow, redirect, port)
+    if err != nil {
+		fmt.Printf("ERROR: %v\n", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Problem saving state"))
+		return
+    }
+
 	query.Set("state", state)
 	authURL := fmt.Sprintf("%s?%s", GITHUB_OAUTH_URL, query.Encode())
 	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
@@ -171,8 +201,12 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
             return
         }
     }
+    claims := OAuthTokenJWT{
+        Id: user.Id,
+        RegisteredClaims: getStdJWTClaims(OAUTH_TOKEN_EXP),
+    }
 
-	tokenString, err := createJWT(user.Id)
+	tokenString, err := createJWT(claims)
 	if err != nil {
 		fmt.Printf("ERROR: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -29,7 +29,16 @@ type OAuthSuccessResponse struct {
     Token string `json:"token"`
 }
 
-type OAuthToken struct {
+type OAuthTokenJWT struct {
     Id int `json:"id"`
+    jwt.RegisteredClaims
+}
+
+type OAuthStateJWT struct {
+    State string `json:"state"`
+    Flow string `json:"flow"`
+    Redirect string `json:"redirect"`
+    Port string `json:"port"`
+    StateId string `json:"state_id"`
     jwt.RegisteredClaims
 }

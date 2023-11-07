@@ -11,10 +11,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 
 	"github.com/juancwu/bento/env"
 )
@@ -29,23 +31,29 @@ func generateRandomString(n int) (string, error) {
 }
 
 // generates a random state to use to identify the oauth redirect uri
-func createOAuthState(secret string) (string, error) {
+func createOAuthState() (string, string, error) {
 	randString, err := generateRandomString(32)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	signature, err := hash(randString + secret)
+    stateId, err := gonanoid.Generate("abcdefghijklmnopqrstuvwxyz", NANOID_LEN)
+    if err != nil {
+        return "", "", err
+    }
+
+	signature, err := hash(stateId + randString + os.Getenv(env.SECRET_KEY))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	stateString := randString + "." + signature
+	stateString := stateId + "." + randString + "." + signature
 
-	return stateString, nil
+	return stateString, stateId, nil
 }
 
 func verifyState(state string, secret string) error {
+    // TODO: update to support stateId + rand + signature format
 	parts := strings.Split(state, ".")
 
 	if len(parts) < 2 {
@@ -170,17 +178,7 @@ func getUserInfoFromGitHub(token string) (*User, error) {
 	return &user, nil
 }
 
-func createJWT(id int) (string, error) {
-	now := time.Now()
-	claims := OAuthToken{
-		id,
-		jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(now.Add(OAUTH_TOKEN_EXP)),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
-		},
-	}
-
+func createJWT(claims jwt.Claims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(os.Getenv(env.SECRET_KEY)))
 	if err != nil {
@@ -191,7 +189,7 @@ func createJWT(id int) (string, error) {
 }
 
 func verifyJWT(tokenString string) (*jwt.Token, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &OAuthToken{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
 		_, ok := token.Method.(*jwt.SigningMethodHMAC)
 		if !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
@@ -209,4 +207,24 @@ func verifyJWT(tokenString string) (*jwt.Token, error) {
 	}
 
 	return nil, errors.New("Invalid token")
+}
+
+func getStdJWTClaims(exp time.Duration) jwt.RegisteredClaims {
+	now := time.Now()
+	stdClaims := jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(now.Add(exp)),
+		IssuedAt:  jwt.NewNumericDate(now),
+		NotBefore: jwt.NewNumericDate(now),
+	}
+
+	return stdClaims
+}
+
+func isValidPort(portStr string) bool {
+    port, err := strconv.Atoi(portStr)
+    if err != nil {
+        return false
+    }
+
+    return port > 0 && port <= 65535
 }
