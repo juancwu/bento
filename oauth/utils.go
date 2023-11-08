@@ -41,7 +41,7 @@ func verifyState(state string) error {
 	parts := strings.Split(state, ".")
 
 	if len(parts) < 2 {
-		return fmt.Errorf("OAUTH state string is invalid.")
+		return errors.New("OAUTH state string is invalid.")
 	}
 
 	randomString := parts[0]
@@ -52,7 +52,7 @@ func verifyState(state string) error {
 	}
 
 	if temptableSignature != trueSignature {
-		return fmt.Errorf("OAUTH State signature does not match.")
+		return errors.New("OAUTH State signature does not match.")
 	}
 
 	return nil
