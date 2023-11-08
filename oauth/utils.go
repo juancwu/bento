@@ -1,7 +1,6 @@
 package oauth
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -21,48 +20,33 @@ import (
 	"github.com/juancwu/bento/env"
 )
 
-func generateRandomString(n int) (string, error) {
-	data := make([]byte, n)
-	if _, err := io.ReadFull(rand.Reader, data); err != nil {
+// generates a random state to use to identify the oauth redirect uri
+func createOAuthState() (string, error) {
+	randString, err := gonanoid.New(32)
+	if err != nil {
 		return "", err
 	}
 
-	return base64.URLEncoding.EncodeToString(data), nil
-}
-
-// generates a random state to use to identify the oauth redirect uri
-func createOAuthState() (string, string, error) {
-	randString, err := generateRandomString(32)
+	signature, err := hash(randString + os.Getenv(env.SECRET_KEY))
 	if err != nil {
-		return "", "", err
+        return "", err
 	}
 
-    stateId, err := gonanoid.Generate("abcdefghijklmnopqrstuvwxyz", NANOID_LEN)
-    if err != nil {
-        return "", "", err
-    }
+	stateString := randString + "." + signature
 
-	signature, err := hash(stateId + randString + os.Getenv(env.SECRET_KEY))
-	if err != nil {
-		return "", "", err
-	}
-
-	stateString := stateId + "." + randString + "." + signature
-
-	return stateString, stateId, nil
+	return stateString, nil
 }
 
-func verifyState(state string, secret string) error {
-    // TODO: update to support stateId + rand + signature format
+func verifyState(state string) error {
 	parts := strings.Split(state, ".")
 
 	if len(parts) < 2 {
 		return fmt.Errorf("OAUTH state string is invalid.")
 	}
 
-	temptableSignature := parts[1]
 	randomString := parts[0]
-	trueSignature, err := hash(randomString + secret)
+	temptableSignature := parts[1]
+	trueSignature, err := hash(randomString + os.Getenv(env.SECRET_KEY))
 	if err != nil {
 		return err
 	}
@@ -72,6 +56,15 @@ func verifyState(state string, secret string) error {
 	}
 
 	return nil
+}
+
+func hash(s string) (string, error) {
+	hasher := sha256.New()
+	if _, err := io.WriteString(hasher, s); err != nil {
+		return "", err
+	}
+
+	return base64.URLEncoding.EncodeToString(hasher.Sum(nil)), nil
 }
 
 func exchangeCodeForToken(code string) (string, error) {
@@ -105,15 +98,6 @@ func exchangeCodeForToken(code string) (string, error) {
 	}
 
 	return token, nil
-}
-
-func hash(s string) (string, error) {
-	hasher := sha256.New()
-	if _, err := io.WriteString(hasher, s); err != nil {
-		return "", err
-	}
-
-	return base64.URLEncoding.EncodeToString(hasher.Sum(nil)), nil
 }
 
 func getUserPrimaryEmail(token string) (string, error) {
