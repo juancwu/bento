@@ -17,12 +17,14 @@ import (
 )
 
 const (
-	GITHUB_OAUTH_URL       = "https://github.com/login/oauth/authorize"
-	GITHUB_TOKEN_URL       = "https://github.com/login/oauth/access_token"
-	GITHUB_USER_EMAILS_URL = "https://api.github.com/user/emails"
-	GITHUB_USER_INFO_URL   = "https://api.github.com/user"
-	NANOID_LEN             = 12
-	OAUTH_TOKEN_EXP        = 168 * time.Hour // one week 
+	GITHUB_OAUTH_URL       string        = "https://github.com/login/oauth/authorize"
+	GITHUB_TOKEN_URL       string        = "https://github.com/login/oauth/access_token"
+	GITHUB_USER_EMAILS_URL string        = "https://api.github.com/user/emails"
+	GITHUB_USER_INFO_URL   string        = "https://api.github.com/user"
+	GITHUB_OAUTH_SCOPE     string        = "user"
+	NANOID_LEN             int           = 12
+	OAUTH_TOKEN_EXP        time.Duration = 168 * time.Hour // one week
+	CLI_REDIRECT           string        = "http://127.0.0.1"
 )
 
 func New(s *store.Store) *OAuthHandler {
@@ -78,47 +80,34 @@ func (h *OAuthHandler) GetLoginPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-    flow := strings.ToLower(r.URL.Query().Get("flow"))
-    redirect := strings.ToLower(r.URL.Query().Get("redirect"))
-    portString := r.URL.Query().Get("port")
-
-    if redirect == "" || strings.Contains(redirect, "localhost") {
-        http.Error(w, "Invalid redirect query parameter", http.StatusBadRequest)
-        return
-    }
-
-    if flow != "" && flow != "web" && flow != "cli" {
-        http.Error(w, "Invalid flow query parameter", http.StatusBadRequest)
-        return
-    }
-
-    validPort, port := isValidPort(portString)
-
-    if !validPort {
-        http.Error(w, "Invalid port query parameter", http.StatusBadRequest)
-        return
-    }
+	cliStr := strings.ToLower(r.URL.Query().Get("cli"))
+	if cliStr != "true" && cliStr != "false" {
+		http.Error(w, "Invalid cli query parameter", http.StatusBadRequest)
+		return
+	}
+	isCli := cliStr == "true"
+	var port uint16 = 0
+	if isCli {
+		portStr := r.URL.Query().Get("port")
+		isValid, portNum := isValidPort(portStr)
+		if !isValid {
+			http.Error(w, "Invalid port query parameter", http.StatusBadRequest)
+			return
+		}
+		port = portNum
+	}
 
 	query := url.Values{}
 	query.Set("client_id", os.Getenv(env.GITHUB_OAUTH_CLIENT_ID))
-	query.Set("scope", "user:email")
+	query.Set("scope", GITHUB_OAUTH_SCOPE)
 
-	state, stateId, err := createOAuthState()
+	state, err := createOAuthState(isCli, port)
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Problem occurred getting url"))
 		return
 	}
-
-    // save state in database for further query on callback
-    err = h.store.SaveState(stateId, flow, redirect, port)
-    if err != nil {
-		fmt.Printf("ERROR: %v\n", err)
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Problem saving state"))
-		return
-    }
 
 	query.Set("state", state)
 	authURL := fmt.Sprintf("%s?%s", GITHUB_OAUTH_URL, query.Encode())
@@ -134,7 +123,7 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := verifyState(state, os.Getenv(env.SECRET_KEY))
+	oauthJwt, err := verifyOAuthState(state)
 	if err != nil {
 		fmt.Println("OAuth callback attempt with invalid state")
 		http.Error(w, "Invalid state", http.StatusBadRequest)
@@ -186,27 +175,27 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-    ghToken, err := h.store.GetAccessToken(user.Id)
-    if err == sql.ErrNoRows {
-        // create new access token entry
-        h.store.SaveAccessToken(user.Id, token)
-    } else if err != nil {
-        fmt.Printf("ERROR: %v", err)
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    } else if  ghToken != token {
-        // update acess token in db
-        err = h.store.UpdateAccessToken(user.Id, token)
-        if err != nil {
-            fmt.Printf("ERROR: %v", err)
-            http.Error(w, err.Error(), http.StatusInternalServerError)
-            return
-        }
-    }
-    claims := OAuthTokenJWT{
-        Id: user.Id,
-        RegisteredClaims: getStdJWTClaims(OAUTH_TOKEN_EXP),
-    }
+	ghToken, err := h.store.GetAccessToken(user.Id)
+	if err == sql.ErrNoRows {
+		// create new access token entry
+		h.store.SaveAccessToken(user.Id, token)
+	} else if err != nil {
+		fmt.Printf("ERROR: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	} else if ghToken != token {
+		// update acess token in db
+		err = h.store.UpdateAccessToken(user.Id, token)
+		if err != nil {
+			fmt.Printf("ERROR: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	claims := OAuthTokenJWT{
+		Id:               user.Id,
+		RegisteredClaims: getStdJWTClaims(OAUTH_TOKEN_EXP),
+	}
 
 	tokenString, err := createJWT(claims)
 	if err != nil {
@@ -215,9 +204,15 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := OAuthSuccessResponse{
-		Token: tokenString,
-	}
-
-	web.Json(w, response, http.StatusOK)
+	if oauthJwt.Cli {
+        query := url.Values{}
+        query.Set("token", tokenString)
+        redirect := fmt.Sprintf("%s:%d?%s", CLI_REDIRECT, oauthJwt.Port, query.Encode())
+		http.Redirect(w, r, redirect, http.StatusPermanentRedirect)
+	} else {
+        response := OAuthSuccessResponse{
+            Token: tokenString,
+        }
+        web.Json(w, response, http.StatusOK)
+    }
 }

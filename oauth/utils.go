@@ -21,7 +21,7 @@ import (
 )
 
 // generates a random state to use to identify the oauth redirect uri
-func createOAuthState() (string, error) {
+func createOAuthState(cli bool, port uint16) (string, error) {
 	randString, err := gonanoid.New(32)
 	if err != nil {
 		return "", err
@@ -32,30 +32,52 @@ func createOAuthState() (string, error) {
         return "", err
 	}
 
-	stateString := randString + "." + signature
+    // create jwt to send as state
+    jwt := OAuthStateJWT{
+        State: randString,
+        Port: port,
+        Cli: cli,
+    }
+    jwtString, err := createJWT(jwt)
+    if err != nil {
+        return "", err
+    }
+
+    stateString := jwtString + "." + signature
 
 	return stateString, nil
 }
 
-func verifyState(state string) error {
-	parts := strings.Split(state, ".")
+func verifyOAuthState(stateJWT string) (*OAuthStateJWT, error) {
+	parts := strings.Split(stateJWT, ".")
 
 	if len(parts) < 2 {
-		return errors.New("OAUTH state string is invalid.")
+		return nil, errors.New("OAUTH state string is invalid.")
 	}
 
-	randomString := parts[0]
-	temptableSignature := parts[1]
-	trueSignature, err := hash(randomString + os.Getenv(env.SECRET_KEY))
+    jwtString := parts[0]
+    signature := parts[1]
+
+    token, err := verifyJWT(jwtString)
+    if err != nil {
+        return nil, err
+    }
+
+    jwt, ok := token.Claims.(*OAuthStateJWT)
+    if !ok {
+        return nil, errors.New("Invalid JWT format")
+    }
+
+	trueSignature, err := hash(jwt.State + os.Getenv(env.SECRET_KEY))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if temptableSignature != trueSignature {
-		return errors.New("OAUTH State signature does not match.")
+	if signature != trueSignature {
+		return nil, errors.New("OAUTH State signature does not match.")
 	}
 
-	return nil
+	return jwt, nil
 }
 
 func hash(s string) (string, error) {

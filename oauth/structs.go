@@ -36,9 +36,7 @@ type OAuthTokenJWT struct {
 
 type OAuthStateJWT struct {
     State string `json:"state"`
-    Flow string `json:"flow"`
-    Redirect string `json:"redirect"`
-    Port string `json:"port"`
-    StateId string `json:"state_id"`
+    Port uint16 `json:"port"`
+    Cli bool `json:"cli"`
     jwt.RegisteredClaims
 }
