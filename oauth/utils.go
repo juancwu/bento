@@ -20,8 +20,10 @@ import (
 	"github.com/juancwu/bento/env"
 )
 
+const state_string_delimeter string = "$"
+
 // generates a random state to use to identify the oauth redirect uri
-func createOAuthState(cli bool, port uint16) (string, error) {
+func createOAuthState(cli bool, port string) (string, error) {
 	randString, err := gonanoid.New(32)
 	if err != nil {
 		return "", err
@@ -37,25 +39,27 @@ func createOAuthState(cli bool, port uint16) (string, error) {
         State: randString,
         Port: port,
         Cli: cli,
+        RegisteredClaims: getStdJWTClaims(10 * time.Minute),
     }
     jwtString, err := createJWT(jwt)
     if err != nil {
         return "", err
     }
 
-    stateString := jwtString + "." + signature
+    stateString := jwtString + state_string_delimeter + signature
 
 	return stateString, nil
 }
 
 func verifyOAuthState(stateJWT string) (*OAuthStateJWT, error) {
-	parts := strings.Split(stateJWT, ".")
+	parts := strings.Split(stateJWT, state_string_delimeter)
 
 	if len(parts) < 2 {
 		return nil, errors.New("OAUTH state string is invalid.")
 	}
 
     jwtString := parts[0]
+    fmt.Println(jwtString)
     signature := parts[1]
 
     token, err := verifyJWT(jwtString)
@@ -184,7 +188,7 @@ func getUserInfoFromGitHub(token string) (*User, error) {
 	return &user, nil
 }
 
-func createJWT(claims jwt.Claims) (string, error) {
+func createJWT(claims jwt.Claims, ) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(os.Getenv(env.SECRET_KEY)))
 	if err != nil {
@@ -226,18 +230,16 @@ func getStdJWTClaims(exp time.Duration) jwt.RegisteredClaims {
 	return stdClaims
 }
 
-func isValidPort(portStr string) (bool, uint16) {
+func isValidPort(portStr string) bool {
     port, err := strconv.Atoi(portStr)
     if err != nil {
-        return false, 0
+        return false
     }
 
     valid := port > 0 && port <= 65535
     if !valid {
-        return false, 0
+        return false
     }
 
-    port16 := uint16(port)
-
-    return true, port16
+    return true
 }

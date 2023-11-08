@@ -81,20 +81,23 @@ func (h *OAuthHandler) GetLoginPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cliStr := strings.ToLower(r.URL.Query().Get("cli"))
+    if cliStr == "" {
+        cliStr = "false"
+    }
+
 	if cliStr != "true" && cliStr != "false" {
 		http.Error(w, "Invalid cli query parameter", http.StatusBadRequest)
 		return
 	}
 	isCli := cliStr == "true"
-	var port uint16 = 0
+	var port string = "0"
 	if isCli {
-		portStr := r.URL.Query().Get("port")
-		isValid, portNum := isValidPort(portStr)
+		port = r.URL.Query().Get("port")
+		isValid := isValidPort(port)
 		if !isValid {
 			http.Error(w, "Invalid port query parameter", http.StatusBadRequest)
 			return
 		}
-		port = portNum
 	}
 
 	query := url.Values{}
@@ -126,6 +129,7 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	oauthJwt, err := verifyOAuthState(state)
 	if err != nil {
 		fmt.Println("OAuth callback attempt with invalid state")
+        fmt.Printf("ERROR: %v\n", err)
 		http.Error(w, "Invalid state", http.StatusBadRequest)
 		return
 	}
@@ -207,7 +211,7 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	if oauthJwt.Cli {
         query := url.Values{}
         query.Set("token", tokenString)
-        redirect := fmt.Sprintf("%s:%d?%s", CLI_REDIRECT, oauthJwt.Port, query.Encode())
+        redirect := fmt.Sprintf("%s:%s?%s", CLI_REDIRECT, oauthJwt.Port, query.Encode())
 		http.Redirect(w, r, redirect, http.StatusPermanentRedirect)
 	} else {
         response := OAuthSuccessResponse{
