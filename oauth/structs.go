@@ -19,7 +19,7 @@ type Email struct {
     Visibility *string `json:"visibility"`
 }
 
-type User struct {
+type GitHubUser struct {
     Id int `json:"id"`
     Email *string `json:"email"`
     Login *string `json:"login"`
@@ -35,6 +35,7 @@ type OAuthTokenJWT struct {
 }
 
 type OAuthStateJWT struct {
+    Signature string `json:"signature"`
     State string `json:"state"`
     Port string `json:"port"`
     Cli bool `json:"cli"`

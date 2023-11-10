@@ -20,8 +20,6 @@ import (
 	"github.com/juancwu/bento/env"
 )
 
-const state_string_delimeter string = "$"
-
 // generates a random state to use to identify the oauth redirect uri
 func createOAuthState(cli bool, port string) (string, error) {
 	randString, err := gonanoid.New(32)
@@ -31,53 +29,54 @@ func createOAuthState(cli bool, port string) (string, error) {
 
 	signature, err := hash(randString + os.Getenv(env.SECRET_KEY))
 	if err != nil {
-        return "", err
+		return "", err
 	}
 
-    // create jwt to send as state
-    jwt := OAuthStateJWT{
-        State: randString,
-        Port: port,
-        Cli: cli,
-        RegisteredClaims: getStdJWTClaims(10 * time.Minute),
-    }
-    jwtString, err := createJWT(jwt)
-    if err != nil {
-        return "", err
-    }
+	// create jwt to send as state
+	jwt := OAuthStateJWT{
+		Signature:        signature,
+		State:            randString,
+		Port:             port,
+		Cli:              cli,
+		RegisteredClaims: getStdJWTClaims(10 * time.Minute),
+	}
+	jwtString, err := createJWT(jwt)
+	if err != nil {
+		return "", err
+	}
 
-    stateString := jwtString + state_string_delimeter + signature
-
-	return stateString, nil
+	return jwtString, nil
 }
 
 func verifyOAuthState(stateJWT string) (*OAuthStateJWT, error) {
-	parts := strings.Split(stateJWT, state_string_delimeter)
+	token, err := jwt.ParseWithClaims(stateJWT, &OAuthStateJWT{}, func(token *jwt.Token) (interface{}, error) {
+		_, ok := token.Method.(*jwt.SigningMethodHMAC)
+		if !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
 
-	if len(parts) < 2 {
-		return nil, errors.New("OAUTH state string is invalid.")
+		return []byte(os.Getenv(env.SECRET_KEY)), nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
-    jwtString := parts[0]
-    fmt.Println(jwtString)
-    signature := parts[1]
+	if !token.Valid {
+		return nil, errors.New("Invalid token")
+	}
 
-    token, err := verifyJWT(jwtString)
-    if err != nil {
-        return nil, err
-    }
-
-    jwt, ok := token.Claims.(*OAuthStateJWT)
-    if !ok {
-        return nil, errors.New("Invalid JWT format")
-    }
+	jwt, ok := token.Claims.(*OAuthStateJWT)
+	if !ok {
+		return nil, errors.New("Invalid JWT format")
+	}
 
 	trueSignature, err := hash(jwt.State + os.Getenv(env.SECRET_KEY))
 	if err != nil {
 		return nil, err
 	}
 
-	if signature != trueSignature {
+	if jwt.Signature != trueSignature {
 		return nil, errors.New("OAUTH State signature does not match.")
 	}
 
@@ -162,7 +161,7 @@ func getUserPrimaryEmail(token string) (string, error) {
 	return "", errors.New("No email available")
 }
 
-func getUserInfoFromGitHub(token string) (*User, error) {
+func getUserInfoFromGitHub(token string) (*GitHubUser, error) {
 	req, err := http.NewRequest(http.MethodGet, GITHUB_USER_INFO_URL, nil)
 	if err != nil {
 		return nil, err
@@ -180,7 +179,7 @@ func getUserInfoFromGitHub(token string) (*User, error) {
 		return nil, errors.New(fmt.Sprintf("Server returned non-200 status: %s", res.Status))
 	}
 
-	var user User
+	var user GitHubUser
 	if err := json.NewDecoder(res.Body).Decode(&user); err != nil {
 		return nil, errors.New("Error decoding response json from user info request")
 	}
@@ -188,7 +187,7 @@ func getUserInfoFromGitHub(token string) (*User, error) {
 	return &user, nil
 }
 
-func createJWT(claims jwt.Claims, ) (string, error) {
+func createJWT(claims jwt.Claims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(os.Getenv(env.SECRET_KEY)))
 	if err != nil {
@@ -198,25 +197,13 @@ func createJWT(claims jwt.Claims, ) (string, error) {
 	return tokenString, nil
 }
 
-func verifyJWT(tokenString string) (*jwt.Token, error) {
-	token, err := jwt.ParseWithClaims(tokenString, jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
-		_, ok := token.Method.(*jwt.SigningMethodHMAC)
-		if !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
-
-		return []byte(os.Getenv(env.SECRET_KEY)), nil
-	})
-
-	if err != nil {
-		return nil, err
+func keyFuncJWT(token *jwt.Token) (interface{}, error) {
+	_, ok := token.Method.(*jwt.SigningMethodHMAC)
+	if !ok {
+		return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 	}
 
-	if token.Valid {
-		return token, nil
-	}
-
-	return nil, errors.New("Invalid token")
+	return []byte(os.Getenv(env.SECRET_KEY)), nil
 }
 
 func getStdJWTClaims(exp time.Duration) jwt.RegisteredClaims {
@@ -231,15 +218,15 @@ func getStdJWTClaims(exp time.Duration) jwt.RegisteredClaims {
 }
 
 func isValidPort(portStr string) bool {
-    port, err := strconv.Atoi(portStr)
-    if err != nil {
-        return false
-    }
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return false
+	}
 
-    valid := port > 0 && port <= 65535
-    if !valid {
-        return false
-    }
+	valid := port > 0 && port <= 65535
+	if !valid {
+		return false
+	}
 
-    return true
+	return true
 }

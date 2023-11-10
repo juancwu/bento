@@ -1,75 +1,63 @@
 package store
 
-import (
-	"time"
-
-	gonanoid "github.com/matoous/go-nanoid/v2"
-)
-
 type User struct {
-    Id int
-    Email string
-    ObjectId string
+	Id            int
+	Email         string
+	ProviderId    int
+	ProviderToken *string
 }
 
-func (s *Store) CreateNewUser(email string, ghId int) (*User, error) {
-    tx, err := s.db.Begin()
-    if err != nil {
-        return nil, err
-    }
-    defer tx.Rollback()
+func (s *Store) CreateNewUser(login string, email string, providerId int) (*User, error) {
+	res, err := s.db.Exec("INSERT INTO users (login, email, provider_id) VALUES(?, ?, ?)", login, email, providerId)
+	if err != nil {
+		return nil, err
+	}
 
-    stmt, err := tx.Prepare("INSERT INTO users (email, gh_id, object_id, created_at) VALUES(?, ?, ?, ?)")
-    if err != nil {
-        return nil, err
-    }
-    defer stmt.Close()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
 
-    nanoid, err := gonanoid.New(12)
-    if err != nil {
-        return nil, err
-    }
+	user := User{}
 
-    res, err := stmt.Exec(email, ghId, nanoid, time.Now().UTC())
-    if err != nil {
-        return nil, err
-    }
+	err = s.db.QueryRow("SELECT id, email, provider_id, provider_token FROM users WHERE id = ?;", id).
+		Scan(&user.Id, &user.Email, &user.ProviderId, &user.ProviderToken)
 
-    lastId, err := res.LastInsertId()
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
-    var user User
-    err = tx.QueryRow("SELECT id, email, object_id FROM users WHERE id = ?", lastId).Scan(&user.Id, &user.Email, &user.ObjectId)
-    if err != nil {
-        return nil, err
-    }
-
-    err = tx.Commit()
-    if err != nil {
-        return nil, err
-    }
-
-    return &user, nil
+	return &user, nil
 }
 
-func (s *Store) GetUserByGhId(ghId int) (*User, error) {
-    var user User
-    err := s.db.QueryRow("SELECT id, email, object_id FROM users WHERE gh_id = ?", ghId).Scan(&user.Id, &user.Email, &user.ObjectId)
-    if err != nil {
-        return nil, err
-    }
+func (s *Store) GetUserByGhId(providerId int) (*User, error) {
+	var user User
+	err := s.db.
+		QueryRow("SELECT id, email, provider_id, provider_token FROM users WHERE provider_id = ?", providerId).
+		Scan(&user.Id, &user.Email, &user.ProviderId, &user.ProviderToken)
+	if err != nil {
+		return nil, err
+	}
 
-    return &user, nil
+	return &user, nil
 }
 
 func (s *Store) GetUserById(id int) (*User, error) {
-    var user User
-    err := s.db.QueryRow("SELECT id, email, object_id FROM users WHERE id = ?", id).Scan(&user.Id, &user.Email, &user.ObjectId)
-    if err != nil {
-        return nil, err
-    }
+	var user User
+	err := s.db.QueryRow("SELECT id, email, provider_id, provider_token FROM users WHERE id = ?", id).
+		Scan(&user.Id, &user.Email, &user.ProviderId, &user.ProviderToken)
+	if err != nil {
+		return nil, err
+	}
 
-    return &user, nil
+	return &user, nil
+}
+
+func (s *Store) UpdateUserProviderToken(id int, token string) error {
+	_, err := s.db.Exec("UPDATE users SET provider_token = ? WHERE id = ?", token, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

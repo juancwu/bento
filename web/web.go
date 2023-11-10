@@ -1,6 +1,7 @@
 package web
 
 import (
+    "fmt"
 	"encoding/json"
 	"net/http"
 )
@@ -22,4 +23,9 @@ func Json(w http.ResponseWriter, data interface{}, code int) {
 
     w.WriteHeader(code)
     w.Write(jsonData)
+}
+
+func Error(w http.ResponseWriter, err error, code int) {
+    fmt.Printf("ERROR: %v", err)
+    http.Error(w, err.Error(), code)
 }
