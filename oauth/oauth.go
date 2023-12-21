@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/juancwu/bento/env"
 	"github.com/juancwu/bento/store"
@@ -17,12 +19,13 @@ import (
 )
 
 const (
-	GITHUB_OAUTH_URL       = "https://github.com/login/oauth/authorize"
-	GITHUB_TOKEN_URL       = "https://github.com/login/oauth/access_token"
-	GITHUB_USER_EMAILS_URL = "https://api.github.com/user/emails"
-	GITHUB_USER_INFO_URL   = "https://api.github.com/user"
-	NANOID_LEN             = 12
-	OAUTH_TOKEN_EXP        = 168 * time.Hour // one week 
+	GITHUB_OAUTH_URL       string        = "https://github.com/login/oauth/authorize"
+	GITHUB_TOKEN_URL       string        = "https://github.com/login/oauth/access_token"
+	GITHUB_USER_EMAILS_URL string        = "https://api.github.com/user/emails"
+	GITHUB_USER_INFO_URL   string        = "https://api.github.com/user"
+	GITHUB_OAUTH_SCOPE     string        = "user"
+	OAUTH_TOKEN_EXP        time.Duration = 168 * time.Hour // one week
+	CLI_REDIRECT           string        = "http://127.0.0.1"
 )
 
 func New(s *store.Store) *OAuthHandler {
@@ -55,70 +58,67 @@ func (h *OAuthHandler) GetLoginPage(w http.ResponseWriter, r *http.Request) {
 			tokenString := parts[1]
 			fmt.Printf("Token: %s\n", tokenString)
 			// verify the token
-			token, err := verifyJWT(tokenString)
-			if err != nil {
-				fmt.Printf("ERROR: %s\n", err.Error())
-			} else {
-				claims, ok := token.Claims.(*OAuthTokenJWT)
-				if ok {
-					fmt.Printf("Claims: %v\n", claims)
-					// get user info
-					user, err := h.store.GetUserById(claims.Id)
-					if err != nil {
-						fmt.Printf("Could not get user with id: %d\n", claims.Id)
-						fmt.Printf("ERROR: %s\n", err.Error())
-					} else {
-						fmt.Printf("User: %v\n", user)
-					}
-				}
+			token, err := jwt.ParseWithClaims(tokenString, &OAuthTokenJWT{}, keyFuncJWT)
 
-				fmt.Fprint(w, "Token is valid")
+			if err != nil {
+				web.Error(w, errors.New("Invalid Token"), http.StatusBadRequest)
 				return
 			}
+
+			if !token.Valid {
+				web.Error(w, errors.New("Invalid Token"), http.StatusBadRequest)
+				return
+			}
+
+			claims, ok := token.Claims.(*OAuthTokenJWT)
+			if ok {
+				fmt.Printf("Claims: %v\n", claims)
+				// get user info
+				user, err := h.store.GetUserById(claims.Id)
+				if err != nil {
+					fmt.Printf("Could not get user with id: %d\n", claims.Id)
+					fmt.Printf("ERROR: %s\n", err.Error())
+				} else {
+					fmt.Printf("User: %v\n", user)
+				}
+			}
+
+            web.Reply(w, "Token is valid", http.StatusOK)
+            return
 		}
 	}
 
-    flow := strings.ToLower(r.URL.Query().Get("flow"))
-    redirect := strings.ToLower(r.URL.Query().Get("redirect"))
-    portString := r.URL.Query().Get("port")
+	cliStr := strings.ToLower(r.URL.Query().Get("cli"))
+	if cliStr == "" {
+		cliStr = "false"
+	}
 
-    if redirect == "" || strings.Contains(redirect, "localhost") {
-        http.Error(w, "Invalid redirect query parameter", http.StatusBadRequest)
-        return
-    }
-
-    if flow != "" && flow != "web" && flow != "cli" {
-        http.Error(w, "Invalid flow query parameter", http.StatusBadRequest)
-        return
-    }
-
-    validPort, port := isValidPort(portString)
-
-    if !validPort {
-        http.Error(w, "Invalid port query parameter", http.StatusBadRequest)
-        return
-    }
+	if cliStr != "true" && cliStr != "false" {
+		http.Error(w, "Invalid cli query parameter", http.StatusBadRequest)
+		return
+	}
+	isCli := cliStr == "true"
+	var port string = "0"
+	if isCli {
+		port = r.URL.Query().Get("port")
+		isValid := isValidPort(port)
+		if !isValid {
+			http.Error(w, "Invalid port query parameter", http.StatusBadRequest)
+			return
+		}
+	}
 
 	query := url.Values{}
 	query.Set("client_id", os.Getenv(env.GITHUB_OAUTH_CLIENT_ID))
-	query.Set("scope", "user:email")
+	query.Set("scope", GITHUB_OAUTH_SCOPE)
 
-	state, stateId, err := createOAuthState()
+	state, err := createOAuthState(isCli, port)
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Problem occurred getting url"))
 		return
 	}
-
-    // save state in database for further query on callback
-    err = h.store.SaveState(stateId, flow, redirect, port)
-    if err != nil {
-		fmt.Printf("ERROR: %v\n", err)
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Problem saving state"))
-		return
-    }
 
 	query.Set("state", state)
 	authURL := fmt.Sprintf("%s?%s", GITHUB_OAUTH_URL, query.Encode())
@@ -134,9 +134,10 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := verifyState(state, os.Getenv(env.SECRET_KEY))
+	oauthJwt, err := verifyOAuthState(state)
 	if err != nil {
 		fmt.Println("OAuth callback attempt with invalid state")
+		fmt.Printf("ERROR: %v\n", err)
 		http.Error(w, "Invalid state", http.StatusBadRequest)
 		return
 	}
@@ -165,9 +166,8 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		// get user email, and it has to be verified
 		email, err := getUserPrimaryEmail(token)
 		if err != nil {
-			msg := err.Error()
-			fmt.Println(msg)
-			http.Error(w, msg, http.StatusBadRequest)
+			web.Error(w, err, http.StatusBadRequest)
+			return
 		}
 
 		fmt.Printf("User Email: %s\n", email)
@@ -178,46 +178,45 @@ func (h *OAuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// check if user exists
 	user, err := h.store.GetUserByGhId(ghUser.Id)
 	if err != nil && err == sql.ErrNoRows {
-		user, err = h.store.CreateNewUser(*ghUser.Email, ghUser.Id)
+		user, err = h.store.CreateNewUser(*ghUser.Login, *ghUser.Email, ghUser.Id)
 		if err != nil {
-			fmt.Printf("ERROR: could not create new user: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			web.Error(w, err, http.StatusInternalServerError)
+			return
+		}
+	} else if err != nil {
+		web.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	if user.ProviderToken == nil || *user.ProviderToken != token {
+		// update provider token stored in db
+		err := h.store.UpdateUserProviderToken(user.Id, token)
+		if err != nil {
+			web.Error(w, err, http.StatusInternalServerError)
 			return
 		}
 	}
 
-    ghToken, err := h.store.GetAccessToken(user.Id)
-    if err == sql.ErrNoRows {
-        // create new access token entry
-        h.store.SaveAccessToken(user.Id, token)
-    } else if err != nil {
-        fmt.Printf("ERROR: %v", err)
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    } else if  ghToken != token {
-        // update acess token in db
-        err = h.store.UpdateAccessToken(user.Id, token)
-        if err != nil {
-            fmt.Printf("ERROR: %v", err)
-            http.Error(w, err.Error(), http.StatusInternalServerError)
-            return
-        }
-    }
-    claims := OAuthTokenJWT{
-        Id: user.Id,
-        RegisteredClaims: getStdJWTClaims(OAUTH_TOKEN_EXP),
-    }
+	claims := OAuthTokenJWT{
+		Id:               user.Id,
+		RegisteredClaims: getStdJWTClaims(OAUTH_TOKEN_EXP),
+	}
 
 	tokenString, err := createJWT(claims)
 	if err != nil {
-		fmt.Printf("ERROR: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		web.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	response := OAuthSuccessResponse{
-		Token: tokenString,
+	if oauthJwt.Cli {
+		query := url.Values{}
+		query.Set("token", tokenString)
+		redirect := fmt.Sprintf("%s:%s?%s", CLI_REDIRECT, oauthJwt.Port, query.Encode())
+		http.Redirect(w, r, redirect, http.StatusPermanentRedirect)
+	} else {
+		response := OAuthSuccessResponse{
+			Token: tokenString,
+		}
+		web.Json(w, response, http.StatusOK)
 	}
-
-	web.Json(w, response, http.StatusOK)
 }

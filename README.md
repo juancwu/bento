@@ -25,3 +25,6 @@ The stack being used in this project is:
 - Golang
 - PlanetScale
 - Chi
+
+## Script to clea up dirty migration
+`migrate -path ./migrations -database "mysql://$(bat .env | rg DSN | sed 's/^[^=]*=//')" force 0`
