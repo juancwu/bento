@@ -1,9 +1,18 @@
-package views
+package views 
 
-templ RootLayout(title *string) {
-    <!DOCTYPE html>
-    <html>
-        <head>
-        </head>
-    </html>
+templ RootLayout() {
+	<!DOCTYPE html>
+	<html>
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="description" content="Manage project secrets"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<link rel="stylesheet" href="/static/styles.css"/>
+			<title>Bento Web Client</title>
+			<script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+		</head>
+		<body>
+			{ children... }
+		</body>
+	</html>
 }

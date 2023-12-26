@@ -1,5 +1,5 @@
 package shared
 
 const (
-    PORT = 5173
+	PORT = 5173
 )
