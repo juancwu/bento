@@ -1,0 +1,14 @@
+{
+    "name": "bento",
+    "version": "1.0.0",
+    "scripts": {
+        "dev": "tailwindcss -i ./main.css -o ./static/styles.css --watch",
+        "build": "tailwindcss -i ./main.css -o ./static/styles.css --minify"
+    },
+    "keywords": [],
+    "author": "JC",
+    "license": "MIT",
+    "devDependencies": {
+        "tailwindcss": "^3.4.0"
+    }
+}
